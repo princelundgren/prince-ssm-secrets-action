@@ -1,0 +1,50 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Shellcheck the scripts and tests
+        run: shellcheck scripts/*.sh tests/*.sh
+
+      # actionlint doesn't check a composite action's steps, so action.yml's run: blocks are
+      # shellchecked here.
+      - name: Shellcheck action.yml's run blocks
+        run: |
+          steps=$(yq '.runs.steps | length' action.yml)
+          for i in $(seq 0 $((steps - 1))); do
+            script=$(yq ".runs.steps[$i].run // \"\"" action.yml)
+            [ -n "$script" ] || continue
+            printf '%s\n' "$script" | shellcheck --shell=bash -
+          done
+
+      # Dependabot can't see this pin: bump the version and its checksum together, from the
+      # release's actionlint_<version>_checksums.txt.
+      - name: Install actionlint
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          tarball="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSLO "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${tarball}"
+          echo "${ACTIONLINT_SHA256}  ${tarball}" | sha256sum -c -
+          tar -xzf "$tarball" actionlint
+
+      - name: Run actionlint
+        run: ./actionlint -color
+
+      - name: Run the tests
+        run: ./tests/run.sh

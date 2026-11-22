@@ -1,0 +1,57 @@
+name: SSM Parameter Store secrets over OIDC
+description: Assumes an AWS role over GitHub OIDC and exports chosen SSM Parameter Store values under one path to the job's environment, masked.
+author: Prince Lundgren
+branding:
+  icon: lock
+  color: orange
+
+inputs:
+  role-arn:
+    description: ARN of the IAM role to assume. It must trust GitHub's OIDC provider and may read the path.
+    required: true
+  path:
+    description: Parameter Store path to read, such as /ci/example. Every parameter below it is fetched, recursively.
+    required: true
+  names:
+    description: Names to export, relative to the path, separated by spaces or newlines. Each becomes an environment variable of the same name.
+    required: true
+  aws-region:
+    description: AWS region of the parameters.
+    required: true
+  role-session-name:
+    description: Role session name. Defaults to "<owner>-<repo>-<run id>", with characters STS refuses turned into - and the repository part cut so the whole fits in 64.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - id: session
+      shell: bash
+      run: bash "$GITHUB_ACTION_PATH/scripts/session-name.sh"
+
+    # output-env-credentials: false keeps the AWS credentials out of the job's environment; they
+    # reach only the read step below, through its env. With it, mask-aws-account-id has no effect
+    # in this version (it masks only alongside exported env credentials); it stays set so the
+    # account id is masked should that change.
+    - id: credentials
+      uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+      with:
+        role-to-assume: ${{ inputs.role-arn }}
+        aws-region: ${{ inputs.aws-region }}
+        role-session-name: ${{ inputs.role-session-name || steps.session.outputs.name }}
+        role-duration-seconds: 900
+        mask-aws-account-id: true
+        output-env-credentials: false
+        output-credentials: true
+
+    # Inputs reach the script through env, never pasted into the script by ${{ }}.
+    - shell: bash
+      env:
+        AWS_ACCESS_KEY_ID: ${{ steps.credentials.outputs.aws-access-key-id }}
+        AWS_SECRET_ACCESS_KEY: ${{ steps.credentials.outputs.aws-secret-access-key }}
+        AWS_SESSION_TOKEN: ${{ steps.credentials.outputs.aws-session-token }}
+        AWS_REGION: ${{ inputs.aws-region }}
+        SSM_PATH: ${{ inputs.path }}
+        SSM_NAMES: ${{ inputs.names }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/read-parameters.sh"
