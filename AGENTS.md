@@ -14,7 +14,9 @@ account id, role, path or parameter name of a real deployment: examples use
   CI runs only bash 5 on Ubuntu, so check on a Mac with `BASH_UNDER_TEST=/bin/bash ./tests/run.sh`.
 - **Every action is pinned by full commit SHA** with its version in a comment; Dependabot moves the
   pins. actionlint's version and checksum in `test.yml` move together, by hand. The one exception
-  is the Claude review's reusable workflow at `@v1`, a tag its maintainer moves on purpose.
+  is the Claude review's reusable workflow at a major-version tag (`@v2`), which its maintainer
+  moves on purpose. It reads the Claude token from AWS Systems Manager over GitHub OIDC, so this
+  repository holds a `CI_SECRETS_AWS_ACCOUNT` secret, not a token.
 - **CI** runs on GitHub-hosted runners only, never with `pull_request_target` or `workflow_run`.
 
 ## Commands
