@@ -1,0 +1,10 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: prince-ssm-secrets-action
+  description: GitHub Action that loads SSM Parameter Store values into a job's environment
+spec:
+  type: library
+  lifecycle: production
+  owner: prince
+  system: ci
